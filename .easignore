@@ -1,0 +1,15 @@
+node_modules
+.git
+.expo
+.expo-shared
+.vscode
+*.mp3
+*.wav
+*.zip
+*.rar
+*.apk
+*.tar.gz
+.DS_Store
+Thumbs.db
+assets/audio/**
+assets/music/**
