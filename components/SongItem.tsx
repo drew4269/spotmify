@@ -14,6 +14,7 @@ import { useMusicPlayer } from '../contexts/MusicPlayerContext';
 import { formatDuration } from '../utils/musicScanner';
 import { getSongStats, formatPlayCount, formatLastPlayed } from '../utils/playStats';
 import { useNavigation } from '@react-navigation/native';
+import { usePlaylists } from '../contexts/PlaylistsContext';
 import { getCoverPhotoSync } from '../utils/coverPhoto';
 import { Swipeable } from 'react-native-gesture-handler';
 
@@ -37,6 +38,13 @@ const SongItemComponent: React.FC<SongItemProps> = ({
   const [stats, setStats] = useState<{ playCount: number; lastPlayed: Date } | null>(null);
   const [added, setAdded] = useState(false);
   const navigation = useNavigation<any>();
+  const { playlists, addSong } = usePlaylists();
+  const [showPlaylistModal, setShowPlaylistModal] = useState(false);
+  const handleAddToPlaylist = async (playlistId: string) => {
+    await addSong(playlistId, song.id);
+    setShowPlaylistModal(false);
+    // Optionally show feedback
+  };
   const swipeableRef = useRef<Swipeable>(null);
   const addedAnimation = useRef(new Animated.Value(0)).current;
 
@@ -117,6 +125,7 @@ const SongItemComponent: React.FC<SongItemProps> = ({
   };
 
   return (
+    <>
     <Swipeable
       ref={swipeableRef}
       renderLeftActions={renderLeftActions}
@@ -125,7 +134,7 @@ const SongItemComponent: React.FC<SongItemProps> = ({
       friction={2}
       overshootLeft={false}
     >
-      <View style={[styles.container, { backgroundColor: colors.card }]}>
+      <View style={[styles.container, { backgroundColor: colors.card }]}> 
         <TouchableOpacity
           style={styles.contentContainer}
           onPress={handlePress}
@@ -187,7 +196,14 @@ const SongItemComponent: React.FC<SongItemProps> = ({
                 />
               </TouchableOpacity>
             )}
-            <Text style={[styles.duration, { color: colors.textSecondary }]}>
+            <TouchableOpacity
+              style={styles.addToPlaylistInlineBtn}
+              onPress={() => setShowPlaylistModal(true)}
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            >
+              <Ionicons name="add" size={20} color={colors.primary} />
+            </TouchableOpacity>
+            <Text style={[styles.duration, { color: colors.textSecondary, marginLeft: 4 }]}>
               {formatDuration(song.duration)}
             </Text>
           </View>
@@ -219,10 +235,74 @@ const SongItemComponent: React.FC<SongItemProps> = ({
         </Animated.View>
       </View>
     </Swipeable>
+    {/* Playlist Modal */}
+    {showPlaylistModal && (
+      <View style={styles.modalOverlay}>
+        <View style={[styles.modalContent, { backgroundColor: colors.card }]}> 
+          <Text style={[styles.modalTitle, { color: colors.text }]}>Select Playlist</Text>
+          {playlists.length === 0 ? (
+            <Text style={{ color: colors.textSecondary, marginVertical: 16 }}>No playlists found.</Text>
+          ) : (
+            playlists.map(pl => (
+              <TouchableOpacity key={pl.id} style={styles.modalPlaylistBtn} onPress={() => handleAddToPlaylist(pl.id)}>
+                <Text style={{ color: colors.text }}>{pl.name}</Text>
+              </TouchableOpacity>
+            ))
+          )}
+          <TouchableOpacity onPress={() => setShowPlaylistModal(false)} style={styles.modalCancelBtn}>
+            <Text style={{ color: colors.primary, fontWeight: 'bold' }}>Cancel</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    )}
+    </>
   );
 };
 
 const styles = StyleSheet.create({
+  addToPlaylistInlineBtn: {
+    marginLeft: 8,
+    backgroundColor: 'transparent',
+    padding: 2,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  modalOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0,0,0,0.4)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 100,
+  },
+  modalContent: {
+    width: 300,
+    borderRadius: 16,
+    padding: 24,
+    alignItems: 'center',
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    marginBottom: 16,
+  },
+  modalPlaylistBtn: {
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    marginBottom: 8,
+    backgroundColor: 'rgba(0,0,0,0.06)',
+    width: '100%',
+    alignItems: 'center',
+  },
+  modalCancelBtn: {
+    marginTop: 12,
+    padding: 8,
+  },
   container: {
     borderRadius: 8,
     marginHorizontal: 16,

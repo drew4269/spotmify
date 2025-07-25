@@ -5,6 +5,7 @@ export interface Song {
   album?: string;
   duration: number;
   uri: string;
+  coverUri?: string;
   artwork?: string;
   genre?: string;
   year?: number;
@@ -16,7 +17,9 @@ export interface Playlist {
   id: string;
   name: string;
   description?: string;
-  songs: Song[];
+  songIds: string[];
+  coverUri?: string;
+  owner?: string;
   createdAt: Date;
   updatedAt: Date;
   artwork?: string;

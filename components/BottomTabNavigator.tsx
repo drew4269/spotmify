@@ -3,21 +3,22 @@ import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { Ionicons } from '@expo/vector-icons';
 import { HomeScreen } from '../screens/HomeScreen';
 import { StatsScreen } from '../screens/StatsScreen';
-import { PlaylistsScreen } from '../screens/PlaylistsScreen';
+import PlaylistsScreen from '../screens/PlaylistsScreen';
 import { SettingsScreen } from '../screens/SettingsScreen';
 import { useTheme } from '../contexts/ThemeContext';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const Tab = createBottomTabNavigator();
 
 export const BottomTabNavigator: React.FC = () => {
   const { colors } = useTheme();
-
+  const insets = useSafeAreaInsets();
   return (
     <Tab.Navigator
       screenOptions={({ route }) => ({
+        headerShown: false,
         tabBarIcon: ({ focused, color, size }) => {
           let iconName: keyof typeof Ionicons.glyphMap;
-
           if (route.name === 'Home') {
             iconName = focused ? 'home' : 'home-outline';
           } else if (route.name === 'Playlists') {
@@ -29,7 +30,6 @@ export const BottomTabNavigator: React.FC = () => {
           } else {
             iconName = 'help-outline';
           }
-
           return <Ionicons name={iconName} size={size} color={color} />;
         },
         tabBarActiveTintColor: colors.primary,
@@ -38,11 +38,9 @@ export const BottomTabNavigator: React.FC = () => {
           backgroundColor: colors.card,
           borderTopColor: colors.border,
           borderTopWidth: 1,
-          paddingBottom: 8,
-          paddingTop: 8,
-          height: 60,
+          height: 56 + insets.bottom,
+          paddingBottom: insets.bottom,
         },
-        headerShown: false,
       })}
     >
       <Tab.Screen
@@ -75,4 +73,4 @@ export const BottomTabNavigator: React.FC = () => {
       />
     </Tab.Navigator>
   );
-}; 
+};

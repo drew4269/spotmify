@@ -1,10 +1,13 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { View, Text, StyleSheet, Image, TouchableOpacity, Alert, PanResponder, Animated, Slider } from 'react-native';
+import { View, Text, StyleSheet, Image, TouchableOpacity, Alert, PanResponder, Animated } from 'react-native';
+import Slider from '@react-native-community/slider';
 import { Ionicons, MaterialCommunityIcons, Feather } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
+import * as MediaLibrary from 'expo-media-library';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useTheme, useCoverPhotoUpdate } from '../contexts/ThemeContext';
 import { useMusicPlayer } from '../contexts/MusicPlayerContext';
+import { usePlaylists } from '../contexts/PlaylistsContext';
 import { Song } from '../types';
 import { getCoverPhoto } from '../utils/coverPhoto';
 import { useNavigation } from '@react-navigation/native';
@@ -12,6 +15,7 @@ import * as Haptics from 'expo-haptics';
 import * as SystemUI from 'expo-system-ui';
 
 const COVER_KEY_PREFIX = 'spotmify_cover_';
+const GALLERY_IMAGES_KEY = 'spotmify_gallery_images';
 
 const ICON_SIZE = 28;
 
@@ -20,14 +24,81 @@ export const SongDetailsScreen = ({ route }: any) => {
   const { notifyCoverUpdate } = useCoverPhotoUpdate();
   const { playerState, playSong, pauseSong, resumeSong, seekTo, stopSong } = useMusicPlayer();
   const navigation = useNavigation<any>();
+  const { playlists, addSong } = usePlaylists();
+  
+  const handleSeekForward = () => {
+    if (playerState.position !== undefined && playerState.duration) {
+      const newPosition = Math.min(playerState.position + 15, playerState.duration);
+      seekTo(newPosition);
+      setSeekPosition(newPosition);
+    }
+  };
+
+  const handleSeekBackward = () => {
+    if (playerState.position !== undefined) {
+      const newPosition = Math.max(playerState.position - 15, 0);
+      seekTo(newPosition);
+      setSeekPosition(newPosition);
+    }
+  };
+  const [showPlaylistModal, setShowPlaylistModal] = useState(false);
+  const handleAddToPlaylist = async (playlistId: string) => {
+    await addSong(playlistId, song.id);
+    setShowPlaylistModal(false);
+    Alert.alert('Added to Playlist', 'Song added to playlist!');
+  };
   const song: Song = route.params.song;
   const isPlaying = playerState.currentSong?.id === song.id && playerState.isPlaying;
   const [coverUri, setCoverUri] = useState<string | undefined>(song.artwork);
   const [seeking, setSeeking] = useState(false);
   const [seekPosition, setSeekPosition] = useState(0);
   const [bookmarked, setBookmarked] = useState(false);
+  const [galleryImages, setGalleryImages] = useState<string[]>([]);
   const progressBarWidth = useRef(new Animated.Value(0)).current;
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
+
+
+  // Fetch gallery images once
+  useEffect(() => {
+    const fetchGalleryImages = async () => {
+      try {
+        // Try to get cached images first
+        const cached = await AsyncStorage.getItem(GALLERY_IMAGES_KEY);
+        if (cached) {
+          setGalleryImages(JSON.parse(cached));
+          return;
+        }
+        const { status } = await MediaLibrary.requestPermissionsAsync();
+        if (status !== 'granted') return;
+        const assets = await MediaLibrary.getAssetsAsync({ mediaType: MediaLibrary.MediaType.photo, first: 100 });
+        const uris = assets.assets.map(a => a.uri);
+        setGalleryImages(uris);
+        await AsyncStorage.setItem(GALLERY_IMAGES_KEY, JSON.stringify(uris));
+      } catch (e) {
+        // ignore
+      }
+    };
+    fetchGalleryImages();
+  }, []);
+
+  // Assign random cover if missing
+  useEffect(() => {
+    const assignRandomCover = async () => {
+      if (!coverUri && galleryImages.length > 0) {
+        // Check if already assigned
+        const stored = await AsyncStorage.getItem(COVER_KEY_PREFIX + song.id);
+        if (stored) {
+          setCoverUri(stored);
+        } else {
+          const randomUri = galleryImages[Math.floor(Math.random() * galleryImages.length)];
+          setCoverUri(randomUri);
+          await AsyncStorage.setItem(COVER_KEY_PREFIX + song.id, randomUri);
+        }
+      }
+    };
+    assignRandomCover();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [galleryImages, song.id]);
 
   useEffect(() => {
     loadCover();
@@ -163,8 +234,14 @@ export const SongDetailsScreen = ({ route }: any) => {
         <TouchableOpacity onPress={() => seekTo(Math.max(0, playerState.position - 10000))}>
           <Ionicons name="play-skip-back" size={ICON_SIZE} color={colors.text} />
         </TouchableOpacity>
+        <TouchableOpacity onPress={handleSeekBackward}>
+          <MaterialCommunityIcons name="rewind-15" size={ICON_SIZE} color={colors.text} />
+        </TouchableOpacity>
         <TouchableOpacity onPress={handlePlayPause} style={styles.playPauseButton}>
           <Ionicons name={isPlaying ? 'pause' : 'play'} size={36} color={'#111'} />
+        </TouchableOpacity>
+        <TouchableOpacity onPress={handleSeekForward}>
+          <MaterialCommunityIcons name="fast-forward-15" size={ICON_SIZE} color={colors.text} />
         </TouchableOpacity>
         <TouchableOpacity onPress={() => seekTo(Math.min(duration, playerState.position + 10000))}>
           <Ionicons name="play-skip-forward" size={ICON_SIZE} color={colors.text} />
@@ -173,6 +250,30 @@ export const SongDetailsScreen = ({ route }: any) => {
 
       {/* Extra Controls */}
       <View style={styles.extraControlsRow}>
+        <TouchableOpacity onPress={() => setShowPlaylistModal(true)} style={styles.extraControl}>
+          <Ionicons name="list" size={ICON_SIZE} color={colors.textSecondary} />
+          <Text style={[styles.extraLabel, { color: colors.textSecondary }]}>Add to Playlist</Text>
+        </TouchableOpacity>
+      {/* Playlist Modal */}
+      {showPlaylistModal && (
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalContent, { backgroundColor: colors.card }]}> 
+            <Text style={[styles.modalTitle, { color: colors.text }]}>Select Playlist</Text>
+            {playlists.length === 0 ? (
+              <Text style={{ color: colors.textSecondary, marginVertical: 16 }}>No playlists found.</Text>
+            ) : (
+              playlists.map(pl => (
+                <TouchableOpacity key={pl.id} style={styles.modalPlaylistBtn} onPress={() => handleAddToPlaylist(pl.id)}>
+                  <Text style={{ color: colors.text }}>{pl.name}</Text>
+                </TouchableOpacity>
+              ))
+            )}
+            <TouchableOpacity onPress={() => setShowPlaylistModal(false)} style={styles.modalCancelBtn}>
+              <Text style={{ color: colors.primary, fontWeight: 'bold' }}>Cancel</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      )}
         <TouchableOpacity onPress={handleVolume} style={styles.extraControl}>
           <Feather name="volume-2" size={ICON_SIZE} color={colors.textSecondary} />
           <Text style={[styles.extraLabel, { color: colors.textSecondary }]}>Volume</Text>
@@ -195,6 +296,41 @@ export const SongDetailsScreen = ({ route }: any) => {
 };
 
 const styles = StyleSheet.create({
+  modalOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0,0,0,0.4)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 100,
+  },
+  modalContent: {
+    width: 300,
+    borderRadius: 16,
+    padding: 24,
+    alignItems: 'center',
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    marginBottom: 16,
+  },
+  modalPlaylistBtn: {
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    marginBottom: 8,
+    backgroundColor: 'rgba(0,0,0,0.06)',
+    width: '100%',
+    alignItems: 'center',
+  },
+  modalCancelBtn: {
+    marginTop: 12,
+    padding: 8,
+  },
   container: {
     flex: 1,
     backgroundColor: '#181818',
@@ -273,7 +409,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 18,
-    gap: 32,
+    gap: 20,
   },
   playPauseButton: {
     width: 64,

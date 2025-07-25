@@ -7,6 +7,7 @@ import {
   Image,
   Dimensions,
 } from 'react-native';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../contexts/ThemeContext';
 import { useMusicPlayer } from '../contexts/MusicPlayerContext';
@@ -23,6 +24,7 @@ const MiniPlayerComponent: React.FC = () => {
   const navigation = useNavigation<any>();
   const [coverUri, setCoverUri] = useState<string | undefined>(undefined);
   const { lastUpdate } = useCoverPhotoUpdate();
+  const insets = useSafeAreaInsets();
 
   useEffect(() => {
     if (playerState.currentSong) {
@@ -45,96 +47,99 @@ const MiniPlayerComponent: React.FC = () => {
   const handleOpenDetails = () => {
     navigation.navigate('SongDetails', { song: playerState.currentSong });
   };
-
+  const TAB_BAR_HEIGHT = 48;
   return (
-    <TouchableOpacity
-      style={[styles.container, { backgroundColor: colors.card }]}
-      activeOpacity={0.9}
-      onPress={handleOpenDetails}
+    <View
+      style={[
+        styles.absoluteContainer,
+        {
+          backgroundColor: colors.card,
+          bottom: insets.bottom + (navigation.getState().routes[navigation.getState().index].name === 'PlaylistDetails' ? 0 : TAB_BAR_HEIGHT),
+        },
+      ]}
     >
-      <View style={styles.content}>
-        <View style={styles.songInfo}>
-          <View style={styles.artworkContainer}>
-            {coverUri ? (
-              <Image
-                source={{ uri: coverUri }}
-                style={styles.artwork}
-              />
-            ) : (
-              <View style={[styles.artworkPlaceholder, { backgroundColor: colors.primary }]}>
-                <Ionicons name="musical-note" size={16} color={colors.secondary} />
+      <TouchableOpacity
+        activeOpacity={0.9}
+        onPress={handleOpenDetails}
+      >
+        <View style={styles.content}>
+          <View style={styles.songInfo}>
+            <View style={styles.artworkContainer}>
+                {coverUri ? (
+                  <Image
+                    source={{ uri: coverUri }}
+                    style={styles.artwork}
+                  />
+                ) : (
+                  <View style={[styles.artworkPlaceholder, { backgroundColor: colors.primary }]}> 
+                    <Ionicons name="musical-note" size={16} color={colors.secondary} />
+                  </View>
+                )}
               </View>
-            )}
+              <View style={styles.textContainer}>
+                <Text style={[styles.title, { color: colors.text }]} numberOfLines={1}>
+                  {playerState.currentSong.title}
+                </Text>
+                <Text style={[styles.artist, { color: colors.textSecondary }]} numberOfLines={1}>
+                  {playerState.currentSong.artist}
+                </Text>
+              </View>
+            </View>
+            <View style={styles.controls}>
+              <TouchableOpacity
+                style={styles.controlButton}
+                onPress={skipToPrevious}
+                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+              >
+                <Ionicons name="play-skip-back" size={20} color={colors.text} />
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.playButton, { backgroundColor: colors.primary }]}
+                onPress={handlePlayPause}
+                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+              >
+                <Ionicons
+                  name={playerState.isPlaying ? 'pause' : 'play'}
+                  size={20}
+                  color={colors.secondary}
+                />
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.controlButton}
+                onPress={skipToNext}
+                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+              >
+                <Ionicons name="play-skip-forward" size={20} color={colors.text} />
+              </TouchableOpacity>
+            </View>
           </View>
-          
-          <View style={styles.textContainer}>
-            <Text style={[styles.title, { color: colors.text }]} numberOfLines={1}>
-              {playerState.currentSong.title}
-            </Text>
-            <Text style={[styles.artist, { color: colors.textSecondary }]} numberOfLines={1}>
-              {playerState.currentSong.artist}
-            </Text>
+        {/* Progress bar */}
+        {playerState.duration > 0 && (
+          <View style={styles.progressContainer}>
+            <View style={[styles.progressBar, { backgroundColor: colors.border }]}> 
+              <View
+                style={[
+                  styles.progressFill,
+                  {
+                    backgroundColor: colors.primary,
+                    width: `${(playerState.position / playerState.duration) * 100}%`,
+                  },
+                ]}
+              />
+            </View>
           </View>
-        </View>
-
-        <View style={styles.controls}>
-          <TouchableOpacity
-            style={styles.controlButton}
-            onPress={skipToPrevious}
-            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-          >
-            <Ionicons name="play-skip-back" size={20} color={colors.text} />
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={[styles.playButton, { backgroundColor: colors.primary }]}
-            onPress={handlePlayPause}
-            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-          >
-            <Ionicons
-              name={playerState.isPlaying ? 'pause' : 'play'}
-              size={20}
-              color={colors.secondary}
-            />
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={styles.controlButton}
-            onPress={skipToNext}
-            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-          >
-            <Ionicons name="play-skip-forward" size={20} color={colors.text} />
-          </TouchableOpacity>
-        </View>
-      </View>
-
-      {/* Progress bar */}
-      {playerState.duration > 0 && (
-        <View style={styles.progressContainer}>
-          <View style={[styles.progressBar, { backgroundColor: colors.border }]}>
-            <View
-              style={[
-                styles.progressFill,
-                {
-                  backgroundColor: colors.primary,
-                  width: `${(playerState.position / playerState.duration) * 100}%`,
-                },
-              ]}
-            />
-          </View>
-        </View>
-      )}
-    </TouchableOpacity>
+        )}
+      </TouchableOpacity>
+    </View>
   );
 };
 
 const styles = StyleSheet.create({
-  container: {
+  absoluteContainer: {
     position: 'absolute',
-    bottom: 0,
     left: 0,
     right: 0,
-    paddingBottom: 20, // Account for safe area
+    zIndex: 100,
     borderTopWidth: 1,
     borderTopColor: 'rgba(0,0,0,0.1)',
     shadowColor: '#000',
@@ -145,6 +150,8 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 4,
     elevation: 8,
+    marginHorizontal: 0,
+    borderRadius: 0,
   },
   content: {
     flexDirection: 'row',
